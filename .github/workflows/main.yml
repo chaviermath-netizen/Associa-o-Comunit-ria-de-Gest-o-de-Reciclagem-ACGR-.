@@ -1,0 +1,36 @@
+name: CI Pipeline ACGR
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Copiar código do repositório
+      uses: actions/checkout@v4
+
+    - name: Configurar ambiente Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Instalar dependências
+      run: |
+        python -m pip install --upgrade pip
+        pip install Flask Flask-SQLAlchemy Flask-Login
+
+    - name: Criar diretório de templates
+      run: |
+        mkdir -p templates
+        echo "Login" > templates/login.html
+        echo "Index" > templates/index.html
+        echo "Dashboard" > templates/dashboard.html
+
+    - name: Executar testes automatizados
+      run: |
+        python3 -m unittest test_app.py
