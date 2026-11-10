@@ -1,0 +1,252 @@
+================================================================================
+PROJETO: MVP ACGR (Associação Comunitária de Gestão de Reciclagem)
+TECNOLOGIA: Python 3.10+ / Flask / SQLAlchemy / Bootstrap 5 (WCAG 2.1 AA)
+================================================================================
+
+--- 1. DEPENDÊNCIAS (requirements.txt) ---
+Flask==3.0.2
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Werkzeug==3.0.1
+
+
+--- 2. APLICAÇÃO PRINCIPAL (app.py) ---
+from flask import Flask, render_template, redirect, url_for, request, flash
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'acgr-seguranca-mvp-2026-key'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///acgr.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# Modelo de Utilizador (Segurança e Autenticação)
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
+
+# Modelo de Chamado de Recolhimento
+class Chamado(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    solicitante = db.Column(db.String(120), nullable=False)
+    material = db.Column(db.String(80), nullable=False)
+    endereco = db.Column(db.String(250), nullable=False)
+    status = db.Column(db.String(50), default='Pendente') # Pendente, Agendado, Concluído
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# Rota Inicial / Login (Tela 1)
+@app.route('/', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        user = User.query.filter_by(email=email).first()
+        
+        if user and check_password_hash(user.password_hash, password):
+            login_user(user)
+            return redirect(url_for('novo_chamado'))
+        flash('Credenciais inválidas. Verifique seu e-mail e senha.', 'danger')
+    return render_template('login.html')
+
+# Rota de Cadastro de Chamado (Tela 2)
+@app.route('/novo-chamado', methods=['GET', 'POST'])
+@login_required
+def novo_chamado():
+    if request.method == 'POST':
+        endereco = request.form.get('endereco')
+        material = request.form.get('material')
+        
+        novo = Chamado(
+            solicitante=current_user.email,
+            material=material,
+            endereco=endereco,
+            status='Agendado',
+            user_id=current_user.id
+        )
+        db.session.add(novo)
+        db.session.commit()
+        flash(f'Success! Collection request for ACGR-{novo.id+9000} has been scheduled.', 'success')
+        return redirect(url_for('dashboard'))
+    return render_template('novo_chamado.html')
+
+# Rota do Painel e Resultados (Tela 3)
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    chamados = Chamado.query.filter_by(user_id=current_user.id).all()
+    total = len(chamados)
+    pendentes = sum(1 for c in chamados if c.status == 'Pendente')
+    agendados = sum(1 for c in chamados if c.status == 'Agendado')
+    concluidos = sum(1 for c in chamados if c.status == 'Concluído')
+    return render_template('dashboard.html', chamados=chamados, total=total, pendentes=pendentes, agendados=agendados, concluidos=concluidos)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+        if not User.query.filter_by(email='morador.teste@acgr.local').first():
+            hashed_pw = generate_password_hash('senha123', method='pbkdf2:sha256')
+            user_teste = User(email='morador.teste@acgr.local', password_hash=hashed_pw)
+            db.session.add(user_teste)
+            db.session.commit()
+    app.run(debug=True)
+
+
+--- 3. TEMPLATES HTML ---
+
+[templates/login.html]
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <title>ACGR - Login</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+    <div class="container mt-5" style="max-width: 400px;">
+        <h2 class="mb-4 text-success">ACGR - Reciclagem</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+        <form method="POST">
+            <div class="mb-3">
+                <label for="email" class="form-label">E-mail de Acesso</label>
+                <input type="email" class="form-control" id="email" name="email" required aria-required="true">
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Palavra-passe</label>
+                <input type="password" class="form-control" id="password" name="password" required aria-required="true">
+            </div>
+            <button type="submit" class="btn btn-success w-100">Entrar no Sistema</button>
+        </form>
+    </div>
+</body>
+</html>
+
+[templates/novo_chamado.html]
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <title>ACGR - Novo Chamado</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+    <div class="container mt-5" style="max-width: 500px;">
+        <h2 class="mb-4 text-success">Registar Novo Chamado</h2>
+        <form method="POST">
+            <div class="mb-3">
+                <label for="endereco" class="form-label">Endereço de Recolha</label>
+                <input type="text" class="form-control" id="endereco" name="endereco" required aria-required="true" placeholder="Ex: Rua Oceânica, 120">
+            </div>
+            <div class="mb-3">
+                <label for="material" class="form-label">Tipo de Material</label>
+                <select class="form-select" id="material" name="material" required aria-required="true">
+                    <option value="" selected disabled>Selecione o material</option>
+                    <option value="Plástico PET">Plástico PET</option>
+                    <option value="Papel / Cartão">Papel / Cartão</option>
+                    <option value="Vidro">Vidro</option>
+                    <option value="Metal / Alumínio">Metal / Alumínio</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-success w-100">Submeter Chamado</button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary w-100 mt-2">Voltar ao Painel</a>
+        </form>
+    </div>
+</body>
+</html>
+
+[templates/dashboard.html]
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <title>ACGR - Painel de Chamados</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-success alert-dismissible fade show" role="alert">
+                  <span>✔ <strong>Success!</strong> {{ message }}</span>
+                  <a href="{{ url_for('dashboard') }}" class="btn-close" aria-label="Close"></a>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Recycling Collection Requests</h2>
+            <div>
+                <a href="{{ url_for('novo_chamado') }}" class="btn btn-dark">New Request</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm ms-2">Sair</a>
+            </div>
+        </div>
+
+        <div class="row text-center mb-4">
+            <div class="col"><div class="p-3 bg-white border rounded">Total: <strong>{{ total }}</strong></div></div>
+            <div class="col"><div class="p-3 bg-white border rounded">Pending: <strong>{{ pendentes }}</strong></div></div>
+            <div class="col"><div class="p-3 bg-white border rounded">Scheduled: <strong>{{ agendados }}</strong></div></div>
+            <div class="col"><div class="p-3 bg-white border rounded">Completed: <strong>{{ concluidos }}</strong></div></div>
+        </div>
+
+        <div class="card shadow-sm p-3 bg-white">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Request ID</th>
+                        <th>Requester</th>
+                        <th>Material Type</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in chamados %}
+                    <tr>
+                        <td>ACGR-{{ c.id + 9000 }}</td>
+                        <td>{{ c.solicitante }}</td>
+                        <td>{{ c.material }}</td>
+                        <td>
+                            {% if c.status == 'Agendado' %}
+                                <span class="badge bg-primary">📅 Scheduled</span>
+                            {% elif c.status == 'Concluído' %}
+                                <span class="badge bg-success">✔ Completed</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">⏳ Pending</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">Nenhum chamado registado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
