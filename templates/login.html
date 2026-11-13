@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACGR - Login</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background-color: #f4f6f8; color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .login-card { background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        h2 { color: #2e7d32; margin-bottom: 20px; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
+        input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        .btn { width: 100%; padding: 10px; background-color: #2e7d32; color: #fff; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        .btn:hover { background-color: #1b5e20; }
+        .back-link { display: block; margin-top: 15px; color: #666; text-decoration: none; font-size: 14px; }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2>ACGR - Entrar</h2>
+        <form method="POST">
+            <div class="input-group">
+                <label for="username">Utilizador</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="input-group">
+                <label for="password">Palavra-passe</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn">Entrar</button>
+        </form>
+        <a href="/" class="back-link">← Voltar à página inicial</a>
+    </div>
+</body>
+</html>
